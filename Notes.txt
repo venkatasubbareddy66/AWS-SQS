@@ -1,0 +1,185 @@
+Amazon SQS provides queues for high-throughput, system-to-system messaging. You can use queues to decouple heavyweight processes and to buffer and batch work. Amazon SQS stores messages until microservices and serverless applications process them.
+
+-- it is a message queuing service
+
+How it works ?
+
+workflow 
+
+producers --> AWS SQS --> SQS Queue --> Consumers
+
+
+-- Amazon SQS allows producers to send messages to a queue. Messages are then stored in an SQS Queue. When consumers are ready to process new messages they poll them from the queue. Applications, microservices, and multiple AWS services can take the role of producers or consumers.
+
+
+Benefits and features : 
+
+1 Highly scalable Standard and FIFO queues
+
+Queues scale elastically with your application. Nearly unlimited throughput and no limit to the number of messages per queue in Standard queues. First-In-First-Out delivery and exactly once processing in FIFO queues.
+
+2 Durability and availability
+
+Your queues are distributed on multiple servers. Redundant infrastructure provides highly concurrent access to messages.
+
+3 Security
+
+Protection in transit and at rest. Transmit sensitive data in encrypted queues. Send messages in a Virtual Private Cloud.
+
+4 Batching
+
+Send, receive, or delete messages in batches of up to 10 messages or 256KB to save costs.
+
+
+-- it is the first service launched by the AWS in 2004 , it is very popular for the de-coupling the applications 
+
+
+
+--------- it has 2 components Standard and FIFO queues , the differences are 
+
+1  Message Order
+
+-- Standard queues provide best-effort ordering which ensures that messages are generally delivered in the same order as they are sent. Occasionally (because of the highly-distributed architecture that allows high throughput), more than one copy of a message might be delivered out of order.
+
+-- FIFO queues offer first-in-first-out delivery and exactly-once processing: the order in which messages are sent and received is strictly preserved.
+
+2  Delivery
+
+-- Standard queues guarantee that a message is delivered at least once and duplicates can be introduced into the queue.
+
+-- FIFO queues ensure a message is delivered exactly once and remains available until a consumer processes and deletes it; duplicates are not introduced into the queue.
+
+3  Transactions Per Second (TPS)
+
+-- Standard queues allow nearly-unlimited number of transactions per second.
+
+-- FIFO queues allow to process up to 3000 messages per second per API action.
+
+4  Regions
+
+-- Standard queues are available in all the regions.
+
+-- FIFO queues are currently available in limited regions only.
+
+5  AWS Services Supported
+
+-- Standard Queues are supported by all AWS services.
+
+-- FIFO Queues are currently not supported by all AWS services like: CloudWatch Events, S3 Event Notifications, SNS Topic Subscriptions, Auto Scaling Lifecycle Hooks, AWS IoT Rule Actions, AWS Lambda Dead Letter Queues.
+
+
+What is Visibility timeout ?
+
+-- Visibility timeout sets the length of time that a message received from a queue (by one consumer) will not be visible to the other message consumers.
+
+-- The visibility timeout begins when Amazon SQS returns a message. If the consumer fails to process and delete the message before the visibility timeout expires, the message becomes visible to other consumers. If a message must be received only once, your consumer must delete it within the duration of the visibility timeout.
+
+-- The default visibility timeout setting is 30 seconds. This setting applies to all messages in the queue. Typically, you should set the visibility timeout to the maximum time that it takes your application to process and delete a message from the queue.
+
+eg : if one consumer is request a meaasge from SQS queue it will give message and it has 30 sec default value to read and deletes it , now if consumer 2 has requested for same message it won't send 'coz the visibility timeout is in active for 30 sec , so after 30 sec it will give message to other consumer 
+
+consumer will be : Applications , lambda functions, ec2 instances, and other aws services 
+
+-- If standard queue, when one consumer pick a message and fails, it will be available for other consumers within the visibility period.
+
+-- FIFO : If a message must be received only once, your consumer must delete it within the duration of the visibility timeout
+
+what is Delivery delay(DelaySeconds)?
+
+ Any messages that you send to the queue remain invisible to consumers for the duration of the delay period.
+
+ -- Receive message wait time(ReceiveMessageWaitTimeSeconds): the maximum amount of time that polling will wait for messages to become available.
+
+ -- Message retention period(MessageRetentionPeriod): amount of time that Amazon SQS retains a message that does not get deleted.
+
+ -- Maximum number of receives per message(maxReceiveCount): If the ReceiveCount for a message exceeds the maximum receive count for the queue, Amazon SQS moves the message to the associated DLQ.
+
+----------------------------------
+-- using lambda and SQS combination it is very powerful event driven solutions so, lambda polls SQS and process the messages and these messages are read in the batches and lambda function is invoked once for the each batch so u define the batch size in the lambda configuration , u can specify the batch size b/w 1 - 1000 and default value for the batch  10 
+
+lambda configuration for SQS
+
+ 1 SQS Batch processing : 
+
+-- As we discussed SQS messagaes are processed in batches not individually 
+
+-- Lambda deletes the SQS batch  automatically , if all messages e process successfully to avoid re-processing
+
+Failed scrnarios:
+
+-- if one or more messages will fail  lambda ll re-process the batch and u may get duplicate records (that's why Idempotency  important in lambda)
+
+How to avoid re-processing messagaes
+
+-- Reporting batch items Failures feature provided by the AWS 
+
+-- only failure messages will re-process through Reporting batch items Failures
+
+
+2  Batch Size :
+
+-- messages u want to process  once , default value is 10 
+
+-- keep the batch size 1 as small as , coz lambda will encounter lot of messages , it will keep on creating new lambda instance, u might face throttling issues so it has some limit to create lambda functions ryt? so 
+
+-- it is very important aspect of lambda-SQS integration 
+
+3 Batch Window :
+
+-- time u want to wait before invoking the function. it has to do with SQS Polling 
+-- default value is 0 . Which means the lambda will keep on polling SQS to know if it has messages equals o batchsize 
+
+-- Important as it can lead to un-necessary lambda polling hence un-necessary SQS and lambda billing
+
+
+Handling Failed messages (recommended)
+
+-- if a message s failed, it is retried by lambda until 
+
+- retention period is reached (14 days)
+- there is a dead-letter queue 
+
+-- so create DLQ with SQS so that ur lambda does not keep on invoking for 14 days 
+
+eg : ur retried policy number is 5 , it will picked by lambda only for 5 times after 5 times tyhe lambda will send this message to DLQ , this will saves u costs , un-necessary cloud watch logs ....
+
+
+==================LAB=================
+
+AWS SQS Trigger To Lambda Function
+
+
+step 1 : create one lambda function
+
+-- choose blue print --> search for SQS select that --> name of ur function --> create new role --> create function 
+
+-- once u create function with the new role created by the lambda function , u have to add other policies like  "AmazonSQSFullAccess", "AWSLambdaSQSQueueExecutionRole", to get permissions 
+
+
+Step 2 : create Queue
+
+-- create queue as standard queue --> give name and create queue
+
+-- now whatever the messages that we are giving here that will be going to trigger lambda 
+
+-- so create messages first 
+
+--  open queue --> below c.o lambda triggers add lambda function --> c.o send and receive messages --> once u trigger successfully with lambda type some messages in message box 
+
+-- once u do go n check in cloudwatch logs to see our messages 
+
+
+-- create one FIFO queue also 
+
+-- select Content-based deduplication in queue settings 
+
+-- when u try to enter message it will send to lambda 
+
+-- now try to send same message , it wont trigger in lambda 'coz here deduplication is going on through the FIFO , it wont send duplicate data again ,
+
+-- try to change the content , now u will see 
+
+or u can also so with group level deduplication also 
+
+-- the FIFO queue must end with the .fifo only 
+
